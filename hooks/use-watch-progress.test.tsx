@@ -16,12 +16,15 @@ function Harness({
   activeVideoId,
   toggleId,
   toggleChapterKey,
+  resumeAt,
 }: {
   activeVideoId?: string;
   toggleId?: string;
   toggleChapterKey?: string;
+  /** Feed a playback time to savePosition when the button is clicked. */
+  resumeAt?: number;
 }) {
-  const { watched, completedChapters, markWatched, toggleWatched, toggleChapter } =
+  const { watched, completedChapters, positions, markWatched, toggleWatched, toggleChapter, savePosition } =
     useWatchProgress("P1");
   useEffect(() => {
     if (activeVideoId) markWatched(activeVideoId);
@@ -30,6 +33,7 @@ function Harness({
     <div>
       <span data-testid="watched">{watched.join(",")}</span>
       <span data-testid="chapters">{completedChapters.join(",")}</span>
+      <span data-testid="positions">{JSON.stringify(positions)}</span>
       {toggleId && (
         <button data-testid="toggle" onClick={() => toggleWatched(toggleId)}>
           toggle
@@ -38,6 +42,11 @@ function Harness({
       {toggleChapterKey && (
         <button data-testid="toggle-chapter" onClick={() => toggleChapter(toggleChapterKey)}>
           toggle chapter
+        </button>
+      )}
+      {resumeAt !== undefined && (
+        <button data-testid="save-position" onClick={() => savePosition("V", resumeAt)}>
+          save position
         </button>
       )}
     </div>
@@ -56,7 +65,7 @@ describe("useWatchProgress", () => {
     act(() => {
       ({ unmount } = render(<Harness activeVideoId="B" />));
     });
-    expect(read()).toEqual({ watched: ["A", "B"], lastWatched: "B", completedChapters: [] });
+    expect(read()).toEqual({ watched: ["A", "B"], lastWatched: "B", completedChapters: [], positions: {} });
     expect(screen.getByTestId("watched").textContent).toBe("A,B");
     unmount();
   });
@@ -74,14 +83,14 @@ describe("useWatchProgress", () => {
     act(() => {
       ({ unmount } = render(<Harness activeVideoId="B" />));
     });
-    expect(read()).toEqual({ watched: ["A", "B"], lastWatched: "B", completedChapters: [] });
+    expect(read()).toEqual({ watched: ["A", "B"], lastWatched: "B", completedChapters: [], positions: {} });
     unmount();
 
     // 3. Refresh on video B
     act(() => {
       ({ unmount } = render(<Harness activeVideoId="B" />));
     });
-    expect(read()).toEqual({ watched: ["A", "B"], lastWatched: "B", completedChapters: [] });
+    expect(read()).toEqual({ watched: ["A", "B"], lastWatched: "B", completedChapters: [], positions: {} });
     expect(screen.getByTestId("watched").textContent).toBe("A,B");
     unmount();
   });
@@ -180,8 +189,71 @@ describe("useWatchProgress", () => {
       watched: ["A", "B"],
       lastWatched: "B",
       completedChapters: [KEY_A],
+      positions: {},
     });
     expect(screen.getByTestId("chapters").textContent).toBe(KEY_A);
     unmount();
+  });
+
+  test("saves a resume position, survives refresh, and clears at the end", () => {
+    let unmount!: () => void;
+    act(() => {
+      ({ unmount } = render(<Harness resumeAt={123.7} />));
+    });
+    act(() => {
+      fireEvent.click(screen.getByTestId("save-position"));
+    });
+    expect(read().positions).toEqual({ V: 123 });
+    expect(screen.getByTestId("positions").textContent).toBe('{"V":123}');
+    unmount();
+
+    // refresh — the resume point is still there for the next open
+    act(() => {
+      ({ unmount } = render(<Harness resumeAt={123.7} />));
+    });
+    expect(screen.getByTestId("positions").textContent).toBe('{"V":123}');
+    unmount();
+
+    // watching to the end (reported as 0) drops the resume point
+    act(() => {
+      ({ unmount } = render(<Harness resumeAt={0} />));
+    });
+    act(() => {
+      fireEvent.click(screen.getByTestId("save-position"));
+    });
+    expect(read().positions).toEqual({});
+    expect(screen.getByTestId("positions").textContent).toBe("{}");
+    unmount();
+  });
+
+  test("positions below the resume minimum are never stored", () => {
+    let unmount!: () => void;
+    act(() => {
+      ({ unmount } = render(<Harness resumeAt={3} />));
+    });
+    act(() => {
+      fireEvent.click(screen.getByTestId("save-position"));
+    });
+    // Nothing was written at all (no stale resume point, no storage churn).
+    expect(read()?.positions ?? {}).toEqual({});
+    expect(screen.getByTestId("positions").textContent).toBe("{}");
+    unmount();
+  });
+
+  test("resume points are readable during the very first render", () => {
+    // Regression: the player is built from the first render, so a position
+    // that only lands after an effect cues playback at 0:00 on reload.
+    localStorage.setItem(
+      KEY,
+      JSON.stringify({ watched: ["A"], lastWatched: "A", positions: { V: 123 } })
+    );
+    const seen: Record<string, number>[] = [];
+    function Probe() {
+      const { positions } = useWatchProgress("P1");
+      seen.push(positions);
+      return null;
+    }
+    render(<Probe />);
+    expect(seen[0]).toEqual({ V: 123 });
   });
 });

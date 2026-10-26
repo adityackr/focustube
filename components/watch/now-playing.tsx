@@ -18,6 +18,7 @@ export function NowPlaying({
   startAt,
   seekRequest,
   onChapterChange,
+  onProgress,
 }: {
   playlist: Playlist;
   activeVideo: PlaylistVideo;
@@ -29,6 +30,8 @@ export function NowPlaying({
   seekRequest?: SeekRequest | null;
   /** Reports the chapter containing the current playback time (-1 = none). */
   onChapterChange?: (index: number) => void;
+  /** Playback reports (throttled) used to remember where to resume. */
+  onProgress?: (time: number, duration: number) => void;
 }) {
   const router = useRouter();
   const chapters = useMemo(() => chaptersForVideo(activeVideo), [activeVideo]);
@@ -52,6 +55,7 @@ export function NowPlaying({
           startAt={startAt ?? null}
           seekRequest={seekRequest}
           onChapterChange={onChapterChange}
+          onProgress={onProgress}
         />
       </div>
       <div className="mt-4 flex flex-wrap items-center gap-2">

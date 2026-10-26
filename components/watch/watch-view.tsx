@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import type { SeekRequest } from "@/components/watch/video-player";
 import { useRouter } from "next/navigation";
 import { Separator } from "@/components/ui/separator";
@@ -39,8 +39,38 @@ export function WatchView({
   const [seekReq, setSeekReq] = useState<SeekRequest | null>(null);
   // Chapter containing the current playback time (for the sidebar highlight).
   const [activeChapterIndex, setActiveChapterIndex] = useState(-1);
-  const { watched, completedChapters, markWatched, toggleWatched, toggleChapter } =
-    useWatchProgress(playlistId);
+  const {
+    watched,
+    completedChapters,
+    positions,
+    markWatched,
+    toggleWatched,
+    toggleChapter,
+    savePosition,
+  } = useWatchProgress(playlistId);
+
+  // Last resume point we saved — flushed again when the lesson changes (or
+  // this page unmounts) so the exact final position survives navigation (the
+  // player only reports every ~5s).
+  const lastReportRef = useRef<{ videoId: string; time: number } | null>(null);
+
+  const handleProgress = useCallback(
+    (time: number, duration: number) => {
+      if (!activeVideoId) return;
+      // Reaching the end drops the resume point so the next open starts at 0.
+      const resumeAt = duration > 0 && time >= duration - 1 ? 0 : time;
+      lastReportRef.current = { videoId: activeVideoId, time: resumeAt };
+      savePosition(activeVideoId, resumeAt);
+    },
+    [activeVideoId, savePosition]
+  );
+
+  useEffect(() => {
+    return () => {
+      const last = lastReportRef.current;
+      if (last) savePosition(last.videoId, last.time);
+    };
+  }, [activeVideoId, savePosition]);
 
   const handleChapterSelect = (videoId: string, time: number) => {
     // Only called for the already-active video (VideoList links other lessons
@@ -65,15 +95,18 @@ export function WatchView({
     if (activeVideoId) markWatched(activeVideoId);
   }, [activeVideoId, markWatched]);
 
+  const activeIndex =
+    activeVideoId && playlist ? playlist.videos.findIndex((v) => v.videoId === activeVideoId) : -1;
+  const activeVideo = playlist && activeIndex >= 0 ? playlist.videos[activeIndex] : undefined;
+
   if (!playlist) {
     if (!hydrated || loading) return <WatchSkeleton />;
     return <PlaylistNotFound />;
   }
 
-  const activeIndex = activeVideoId
-    ? playlist.videos.findIndex((v) => v.videoId === activeVideoId)
-    : -1;
-  const activeVideo = activeIndex >= 0 ? playlist.videos[activeIndex] : undefined;
+  // Where to cue the player: an explicit ?t= deep link wins, otherwise the
+  // stored position for this video (undefined → start from 0).
+  const resumeAt = activeVideoId ? positions[activeVideoId] : undefined;
 
   return (
     <div className="mx-auto max-w-350 px-4 py-4 sm:px-6 lg:py-6">
@@ -97,9 +130,10 @@ export function WatchView({
               activeVideo={activeVideo}
               activeIndex={activeIndex}
               watched={watched}
-              startAt={startAt}
+              startAt={startAt ?? resumeAt}
               seekRequest={seekReq}
               onChapterChange={setActiveChapterIndex}
+              onProgress={handleProgress}
             />
           ) : (
             <PlaylistOverview

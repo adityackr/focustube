@@ -129,7 +129,10 @@ export function useVideoPlayer({
             readyRef.current = true;
             try {
               const start = cueAtRef.current;
-              if (start > 0) player?.seekTo(start, false);
+              // Exact seek: allowSeekAhead=false snaps to the nearest entry
+              // point, which on a freshly cued video is 0:00 — the resume
+              // position then only lands once the viewer scrubs.
+              if (start > 0) player?.seekTo(start, true);
               if (autoPlayRef.current) player?.playVideo();
               player?.setPlaybackRate(1);
               const rates = player?.getAvailablePlaybackRates?.();
@@ -230,6 +233,21 @@ export function useVideoPlayer({
     }
     setCurrentTime(t);
   }, []);
+
+  // The stored resume position loads in an effect one commit after mount, so
+  // `startAt` can arrive after the player exists. Cue it then — unless the
+  // viewer already started watching (don't yank them somewhere else).
+  // When the player isn't ready yet, onReady cues from `cueAtRef` instead.
+  const appliedStartRef = useRef(startAt ?? 0);
+  useEffect(() => {
+    const target = startAt ?? 0;
+    if (target <= 0 || target === appliedStartRef.current) return;
+    if (!readyRef.current) return;
+    appliedStartRef.current = target;
+    if (currentTime > 1) return;
+    seekTo(target);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [startAt]);
 
   function togglePlay() {
     const p = playerRef.current;

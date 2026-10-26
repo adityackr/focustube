@@ -172,7 +172,7 @@ Paste link/ID
 
 - **IDs accepted**: raw IDs (`PL…`), `youtube.com/playlist?list=…` / `watch?v=…&list=…`, `youtu.be/…?list=…`.
 - **API route** caches responses at the edge (`s-maxage=300`) and returns clean 400/404/502 JSON errors.
-- **Watch progress** (`hooks/use-watch-progress.ts`) stores `{ watched[], lastWatched, completedChapters[] }` per playlist in `localStorage`. Mutations go through a ref mirror so mount-time auto-marking can never clobber previously saved progress (this exact race is covered by a regression test).
+- **Watch progress** (`hooks/use-watch-progress.ts`) stores `{ watched[], lastWatched, completedChapters[], positions{} }` per playlist in `localStorage`. Mutations go through a ref mirror so mount-time auto-marking can never clobber previously saved progress (this exact race is covered by a regression test). Playback position per video is reported by the player every ~5s, so reopening a lesson cues it where you left off — an explicit `?t=` deep link wins, and watching to the end drops the resume point.
 
 ---
 
@@ -264,7 +264,7 @@ No backend, no accounts. Two browser-persisted slices:
 | Key                                   | Owner                                  | Contents                                           |
 | ------------------------------------- | -------------------------------------- | -------------------------------------------------- |
 | `focustube-library`               | Zustand `persist` (`store/library.ts`) | `playlists`, manual `order`, `favorites`, `recent` |
-| `focustube:progress:<playlistId>` | `use-watch-progress`                   | `watched[]`, `lastWatched`, `completedChapters[]` per playlist |
+| `focustube:progress:<playlistId>` | `use-watch-progress`                   | `watched[]`, `lastWatched`, `completedChapters[]`, `positions{}` per playlist |
 
 Upgrading from Clean YouTube? Data stored under the old `clean-youtube-*` keys is adopted automatically on first load (and the old keys removed). Clearing site storage resets the app to a fresh state.
 

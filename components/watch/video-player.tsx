@@ -41,6 +41,8 @@ interface Props {
   seekRequest?: SeekRequest | null;
   /** Fires with the index of the chapter containing the current time (-1 = none). */
   onChapterChange?: (index: number) => void;
+  /** Throttled playback reports (~every 5s, and at the end) for resume tracking. */
+  onProgress?: (time: number, duration: number) => void;
 }
 
 /** Which chapter contains absolute video time `t` (last start at or before `t`). */
@@ -75,6 +77,7 @@ export function VideoPlayer({
   startAt = null,
   seekRequest,
   onChapterChange,
+  onProgress,
 }: Props) {
   const player = useVideoPlayer({ videoId, startAt });
   const {
@@ -121,6 +124,24 @@ export function VideoPlayer({
   useEffect(() => {
     onChapterChangeRef.current?.(currentChapterIndex);
   }, [currentChapterIndex]);
+
+  // Report playback upward for resume tracking: once per 5s bucket, plus a
+  // final report when the video reaches its end (the caller then drops the
+  // resume point so the next open starts from 0).
+  const onProgressRef = useRef(onProgress);
+  useEffect(() => {
+    onProgressRef.current = onProgress;
+  });
+  const lastReportRef = useRef<{ bucket: number; ended: boolean } | null>(null);
+  useEffect(() => {
+    if (!onProgressRef.current) return;
+    const ended = duration > 0 && currentTime >= duration - 1;
+    const bucket = Math.floor(Math.max(0, currentTime) / 5);
+    const prev = lastReportRef.current;
+    if (prev && prev.bucket === bucket && prev.ended === ended) return;
+    lastReportRef.current = { bucket, ended };
+    onProgressRef.current?.(currentTime, duration);
+  }, [currentTime, duration]);
 
   // Apply sidebar seek requests that target this video (once per request).
   const appliedSeekRef = useRef<number | null>(null);

@@ -1,13 +1,9 @@
 import type { Metadata } from "next";
 import { WatchView } from "@/components/watch/watch-view";
 
-export async function generateMetadata({
-  params,
-}: {
-  params: Promise<{ playlistId: string; videoId: string }>;
-}): Promise<Metadata> {
-  const { playlistId } = await params;
-  return { title: `Now playing · ${playlistId}` };
+/** Title comes from the layout template: "Watch · FocusTube". */
+export function generateMetadata(): Metadata {
+  return { title: "Watch" };
 }
 
 /** `?t=` start time in seconds (chapter deep links), or undefined. */
