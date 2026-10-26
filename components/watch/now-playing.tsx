@@ -1,10 +1,13 @@
 "use client";
 
+import { useMemo } from "react";
 import { useRouter } from "next/navigation";
 import { ArrowRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
+import { VideoPlayer, type SeekRequest } from "@/components/watch/video-player";
+import { chaptersForVideo, stripTimestampLines } from "@/lib/chapters";
 import type { Playlist, PlaylistVideo } from "@/lib/types";
 
 export function NowPlaying({
@@ -12,13 +15,27 @@ export function NowPlaying({
   activeVideo,
   activeIndex,
   watched,
+  startAt,
+  seekRequest,
+  onChapterChange,
 }: {
   playlist: Playlist;
   activeVideo: PlaylistVideo;
   activeIndex: number;
   watched: string[];
+  /** Deep-linked start time (`?t=`) applied when the player mounts. */
+  startAt?: number;
+  /** Sidebar-initiated seek for this video. */
+  seekRequest?: SeekRequest | null;
+  /** Reports the chapter containing the current playback time (-1 = none). */
+  onChapterChange?: (index: number) => void;
 }) {
   const router = useRouter();
+  const chapters = useMemo(() => chaptersForVideo(activeVideo), [activeVideo]);
+  const description = useMemo(
+    () => stripTimestampLines(activeVideo.description ?? ""),
+    [activeVideo.description]
+  );
   const nextVideo =
     activeIndex + 1 < playlist.videos.length ? playlist.videos[activeIndex + 1] : undefined;
   const progress = playlist.videos.length
@@ -28,13 +45,13 @@ export function NowPlaying({
   return (
     <>
       <div className="overflow-hidden rounded-2xl border bg-black shadow-xl">
-        <iframe
+        <VideoPlayer
           key={activeVideo.videoId}
-          className="aspect-video w-full"
-          src={`https://www.youtube-nocookie.com/embed/${activeVideo.videoId}?rel=0&autoplay=0`}
-          title={activeVideo.title}
-          allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-          allowFullScreen
+          videoId={activeVideo.videoId}
+          chapters={chapters}
+          startAt={startAt ?? null}
+          seekRequest={seekRequest}
+          onChapterChange={onChapterChange}
         />
       </div>
       <div className="mt-4 flex flex-wrap items-center gap-2">
@@ -58,11 +75,11 @@ export function NowPlaying({
       <p className="mt-1 text-sm font-medium text-muted-foreground">
         {playlist.channelTitle}
       </p>
-      {activeVideo.description && (
+      {description && (
         <Card className="mt-4">
           <CardContent className="whitespace-pre-wrap p-4 text-sm leading-relaxed text-muted-foreground">
-            {activeVideo.description.slice(0, 900)}
-            {activeVideo.description.length > 900 ? "…" : ""}
+            {description.slice(0, 900)}
+            {description.length > 900 ? "…" : ""}
           </CardContent>
         </Card>
       )}

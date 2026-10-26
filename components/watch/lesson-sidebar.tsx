@@ -5,6 +5,7 @@ import { ChevronsRight, ListVideo, Search } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import type { Playlist } from "@/lib/types";
+import { chaptersForVideo } from "@/lib/chapters";
 import { VideoList } from "@/components/watch/video-list";
 
 export function LessonSidebar({
@@ -15,6 +16,10 @@ export function LessonSidebar({
   onToggleWatched,
   open,
   onOpenChange,
+  activeChapterIndex = -1,
+  onChapterSelect,
+  completedChapters,
+  onToggleChapter,
 }: {
   playlist: Playlist;
   playlistId: string;
@@ -23,11 +28,23 @@ export function LessonSidebar({
   onToggleWatched: (videoId: string) => void;
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  /** Index of the chapter currently playing in the active video (-1 = none). */
+  activeChapterIndex?: number;
+  /** Seek request for a chapter inside the already-active video. */
+  onChapterSelect?: (videoId: string, time: number) => void;
+  /** Chapter completion keys (see `chapterKey`). */
+  completedChapters?: string[];
+  /** Manual completed-mark toggle for one chapter. */
+  onToggleChapter?: (key: string) => void;
 }) {
   const [query, setQuery] = useState("");
   const q = query.trim().toLowerCase();
   const filtered = q
-    ? playlist.videos.filter((v) => v.title.toLowerCase().includes(q))
+    ? playlist.videos.filter(
+        (v) =>
+          v.title.toLowerCase().includes(q) ||
+          chaptersForVideo(v).some((c) => c.title.toLowerCase().includes(q))
+      )
     : playlist.videos;
   const progress = playlist.videos.length
     ? Math.round((watched.length / playlist.videos.length) * 100)
@@ -88,6 +105,10 @@ export function LessonSidebar({
               activeVideoId={activeVideoId}
               watched={watched}
               onToggleWatched={onToggleWatched}
+              activeChapterIndex={activeChapterIndex}
+              onChapterSelect={onChapterSelect}
+              completedChapters={completedChapters}
+              onToggleChapter={onToggleChapter}
             />
             {filtered.length === 0 && (
               <p className="p-4 text-center text-sm text-muted-foreground">

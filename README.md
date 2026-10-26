@@ -69,7 +69,8 @@ Available on Library / Recent / Favorites. Collapses to a slim icon rail, works 
 ### Watch pages (`/watch/[playlistId]`, `/watch/[playlistId]/[videoId]`)
 
 - **Playlist overview**: cinematic hero with thumbnail, lesson count, description, and a "Start watching" button.
-- **Distraction-free player**: `youtube-nocookie` embed, lesson counter, completion badge, "Next lesson" button, title and description — nothing else.
+- **Custom course player** (ported from the chapterly app): a chrome over the YouTube IFrame API with native controls hidden — segmented seekbar with chapter dividers, hover preview (thumbnail + time + chapter), floating now-playing chip, keyboard shortcuts (Space/K, J/L, arrows, M, C, F), speed/quality/captions menus, and fullscreen. Lesson counter, completion badge, "Next lesson" button, title and description around it.
+- **Nested chapters in the lesson sidebar**: videos whose description contains YouTube timestamps (`00:00 Intro`) get a collapsible chapter list nested right under the lesson row — click a chapter to seek inside the current video, or jump straight to another lesson deep-linked at that timestamp (`?t=`). The chapter currently playing is highlighted; lesson search matches chapter titles too.
 - **Collapsible lesson sidebar**: progress bar, lesson search, per-lesson watched toggles, active-lesson highlight. Collapses to a single "Show N lessons" button on desktop; a full list below the player on mobile.
 - **Watch progress**: opening a video marks it watched; checkmarks toggle manually. Progress survives refreshes (stored per playlist in `localStorage`).
 - Opening a shared `/watch/…` link for a playlist you don't have yet **auto-imports** it.
@@ -171,7 +172,7 @@ Paste link/ID
 
 - **IDs accepted**: raw IDs (`PL…`), `youtube.com/playlist?list=…` / `watch?v=…&list=…`, `youtu.be/…?list=…`.
 - **API route** caches responses at the edge (`s-maxage=300`) and returns clean 400/404/502 JSON errors.
-- **Watch progress** (`hooks/use-watch-progress.ts`) stores `{ watched[], lastWatched }` per playlist in `localStorage`. Mutations go through a ref mirror so mount-time auto-marking can never clobber previously saved progress (this exact race is covered by a regression test).
+- **Watch progress** (`hooks/use-watch-progress.ts`) stores `{ watched[], lastWatched, completedChapters[] }` per playlist in `localStorage`. Mutations go through a ref mirror so mount-time auto-marking can never clobber previously saved progress (this exact race is covered by a regression test).
 
 ---
 
@@ -221,15 +222,18 @@ Paste link/ID
 │   ├── playlists/                # playlist-card, playlist-grid (+skeleton),
 │   │                             # sortable-playlist-grid, delete-playlist-dialog
 │   ├── watch/                    # watch-view (orchestrator) + watch-topbar,
-│   │                             # now-playing, playlist-overview, lesson-sidebar,
-│   │                             # video-list, playlist-not-found, watch-skeleton
+│   │                             # now-playing (custom VideoPlayer), video-player,
+│   │                             # playlist-overview, lesson-sidebar,
+│   │                             # video-list (+ nested chapters), playlist-not-found,
+│   │                             # watch-skeleton
 │   ├── add-playlist-dialog.tsx   # Import-by-link/ID dialog + trigger button
 │   ├── logo.tsx                  # FocusTube LogoMark (inline SVG)
 │   ├── site-header.tsx           # Landing header
 │   └── providers.tsx             # next-themes ThemeProvider
 │
 ├── lib/
-│   ├── types.ts                  # Playlist, PlaylistVideo, Thumbnail
+│   ├── types.ts                  # Playlist, PlaylistVideo, Thumbnail, Chapter
+│   ├── chapters.ts               # Chapter parsing from descriptions + formatting
 │   ├── youtube.ts                # Server-side YouTube Data API client (pagination)
 │   └── utils.ts                  # cn() + parsePlaylistInput()
 │
@@ -239,6 +243,7 @@ Paste link/ID
 │   └── library.test.ts           # Ordering/persistence tests
 │
 ├── hooks/
+│   ├── use-video-player.ts       # YouTube IFrame API player state (custom chrome)
 │   ├── use-watch-progress.ts     # Per-playlist watched tracking (localStorage)
 │   └── use-watch-progress.test.tsx
 │
@@ -259,7 +264,7 @@ No backend, no accounts. Two browser-persisted slices:
 | Key                                   | Owner                                  | Contents                                           |
 | ------------------------------------- | -------------------------------------- | -------------------------------------------------- |
 | `focustube-library`               | Zustand `persist` (`store/library.ts`) | `playlists`, manual `order`, `favorites`, `recent` |
-| `focustube:progress:<playlistId>` | `use-watch-progress`                   | `watched[]`, `lastWatched` per playlist            |
+| `focustube:progress:<playlistId>` | `use-watch-progress`                   | `watched[]`, `lastWatched`, `completedChapters[]` per playlist |
 
 Upgrading from Clean YouTube? Data stored under the old `clean-youtube-*` keys is adopted automatically on first load (and the old keys removed). Clearing site storage resets the app to a fresh state.
 
@@ -291,6 +296,9 @@ Upgrading from Clean YouTube? Data stored under the old `clean-youtube-*` keys i
 
 - `store/library.test.ts` — ordering (prepend, dedupe, manual `setOrder`, storage round-trip, legacy fallback) and removal cleanup.
 - `hooks/use-watch-progress.test.tsx` — mount-merge without wiping stored progress, the full _watch → next → refresh_ scenario, and toggle on/off persistence.
+- `lib/chapters.test.ts` — chapter parsing from descriptions (both line orders, sorting, end-time chaining), timestamp formatting, description cleanup, memoization.
+- `components/watch/video-list.test.tsx` — nested chapter lists: auto-expand of the active lesson, expand/collapse, in-place seek vs `?t=` deep links, current-chapter highlight.
+- `components/watch/now-playing.test.tsx` — custom player chrome renders, chapters surface in the player menu, timestamp lines stripped from the description.
 
 ---
 

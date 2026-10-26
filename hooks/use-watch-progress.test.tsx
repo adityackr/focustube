@@ -15,20 +15,29 @@ function read() {
 function Harness({
   activeVideoId,
   toggleId,
+  toggleChapterKey,
 }: {
   activeVideoId?: string;
   toggleId?: string;
+  toggleChapterKey?: string;
 }) {
-  const { watched, markWatched, toggleWatched } = useWatchProgress("P1");
+  const { watched, completedChapters, markWatched, toggleWatched, toggleChapter } =
+    useWatchProgress("P1");
   useEffect(() => {
     if (activeVideoId) markWatched(activeVideoId);
   }, [activeVideoId, markWatched]);
   return (
     <div>
       <span data-testid="watched">{watched.join(",")}</span>
+      <span data-testid="chapters">{completedChapters.join(",")}</span>
       {toggleId && (
         <button data-testid="toggle" onClick={() => toggleWatched(toggleId)}>
           toggle
+        </button>
+      )}
+      {toggleChapterKey && (
+        <button data-testid="toggle-chapter" onClick={() => toggleChapter(toggleChapterKey)}>
+          toggle chapter
         </button>
       )}
     </div>
@@ -47,7 +56,7 @@ describe("useWatchProgress", () => {
     act(() => {
       ({ unmount } = render(<Harness activeVideoId="B" />));
     });
-    expect(read()).toEqual({ watched: ["A", "B"], lastWatched: "B" });
+    expect(read()).toEqual({ watched: ["A", "B"], lastWatched: "B", completedChapters: [] });
     expect(screen.getByTestId("watched").textContent).toBe("A,B");
     unmount();
   });
@@ -65,14 +74,14 @@ describe("useWatchProgress", () => {
     act(() => {
       ({ unmount } = render(<Harness activeVideoId="B" />));
     });
-    expect(read()).toEqual({ watched: ["A", "B"], lastWatched: "B" });
+    expect(read()).toEqual({ watched: ["A", "B"], lastWatched: "B", completedChapters: [] });
     unmount();
 
     // 3. Refresh on video B
     act(() => {
       ({ unmount } = render(<Harness activeVideoId="B" />));
     });
-    expect(read()).toEqual({ watched: ["A", "B"], lastWatched: "B" });
+    expect(read()).toEqual({ watched: ["A", "B"], lastWatched: "B", completedChapters: [] });
     expect(screen.getByTestId("watched").textContent).toBe("A,B");
     unmount();
   });
@@ -125,6 +134,54 @@ describe("useWatchProgress", () => {
       fireEvent.click(screen.getByTestId("toggle"));
     });
     expect(read().watched).toEqual(["B"]);
+    unmount();
+  });
+
+  test("chapter completion toggles on, survives refresh, and toggles off", () => {
+    const KEY_A = "vid-a@0";
+    let unmount!: () => void;
+    act(() => {
+      ({ unmount } = render(<Harness toggleChapterKey={KEY_A} />));
+    });
+    expect(screen.getByTestId("chapters").textContent).toBe("");
+
+    act(() => {
+      fireEvent.click(screen.getByTestId("toggle-chapter"));
+    });
+    expect(read().completedChapters).toEqual([KEY_A]);
+    expect(screen.getByTestId("chapters").textContent).toBe(KEY_A);
+    unmount();
+
+    // refresh — the mark must not be wiped by the mount-time auto-mark
+    act(() => {
+      ({ unmount } = render(<Harness toggleChapterKey={KEY_A} />));
+    });
+    expect(screen.getByTestId("chapters").textContent).toBe(KEY_A);
+
+    act(() => {
+      fireEvent.click(screen.getByTestId("toggle-chapter"));
+    });
+    expect(read().completedChapters).toEqual([]);
+    expect(screen.getByTestId("chapters").textContent).toBe("");
+    unmount();
+  });
+
+  test("marking a video watched keeps chapter completion (no clobber)", () => {
+    const KEY_A = "vid-a@0";
+    localStorage.setItem(
+      KEY,
+      JSON.stringify({ watched: ["A"], lastWatched: "A", completedChapters: [KEY_A] })
+    );
+    let unmount!: () => void;
+    act(() => {
+      ({ unmount } = render(<Harness activeVideoId="B" />));
+    });
+    expect(read()).toEqual({
+      watched: ["A", "B"],
+      lastWatched: "B",
+      completedChapters: [KEY_A],
+    });
+    expect(screen.getByTestId("chapters").textContent).toBe(KEY_A);
     unmount();
   });
 });

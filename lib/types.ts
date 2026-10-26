@@ -12,6 +12,14 @@ export interface PlaylistVideo {
   position: number;
 }
 
+export interface Chapter {
+  id: string;
+  title: string;
+  startSeconds: number;
+  /** null = plays until the end of the video */
+  endSeconds: number | null;
+}
+
 export interface Playlist {
   playlistId: string;
   playlistTitle: string;

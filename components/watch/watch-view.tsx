@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import type { SeekRequest } from "@/components/watch/video-player";
 import { useRouter } from "next/navigation";
 import { Separator } from "@/components/ui/separator";
 import { cn } from "@/lib/utils";
@@ -17,9 +18,12 @@ import { PlaylistNotFound } from "@/components/watch/playlist-not-found";
 export function WatchView({
   playlistId,
   activeVideoId,
+  startAt,
 }: {
   playlistId: string;
   activeVideoId?: string;
+  /** Deep-linked start time from `?t=` — cued when the player mounts. */
+  startAt?: number;
 }) {
   const router = useRouter();
   const playlists = useLibrary((s) => s.playlists);
@@ -31,7 +35,19 @@ export function WatchView({
   const playlist = playlists[playlistId];
   const loading = loadingIds.includes(playlistId);
   const [sidebarOpen, setSidebarOpen] = useState(true);
-  const { watched, markWatched, toggleWatched } = useWatchProgress(playlistId);
+  // Sidebar chapter click inside the active video → seek the player in place.
+  const [seekReq, setSeekReq] = useState<SeekRequest | null>(null);
+  // Chapter containing the current playback time (for the sidebar highlight).
+  const [activeChapterIndex, setActiveChapterIndex] = useState(-1);
+  const { watched, completedChapters, markWatched, toggleWatched, toggleChapter } =
+    useWatchProgress(playlistId);
+
+  const handleChapterSelect = (videoId: string, time: number) => {
+    // Only called for the already-active video (VideoList links other lessons
+    // with a ?t= href, which the route turns into a startAt deep link).
+    if (videoId !== activeVideoId) return;
+    setSeekReq((prev) => ({ videoId, time, n: (prev?.n ?? 0) + 1 }));
+  };
 
   // Auto-import when opening a shared link for a playlist not in the library.
   // Wait for hydration first so we don't re-fetch something already in localStorage.
@@ -81,6 +97,9 @@ export function WatchView({
               activeVideo={activeVideo}
               activeIndex={activeIndex}
               watched={watched}
+              startAt={startAt}
+              seekRequest={seekReq}
+              onChapterChange={setActiveChapterIndex}
             />
           ) : (
             <PlaylistOverview
@@ -98,6 +117,10 @@ export function WatchView({
           onToggleWatched={toggleWatched}
           open={sidebarOpen}
           onOpenChange={setSidebarOpen}
+          activeChapterIndex={activeChapterIndex}
+          onChapterSelect={handleChapterSelect}
+          completedChapters={completedChapters}
+          onToggleChapter={toggleChapter}
         />
       </div>
 
@@ -113,6 +136,10 @@ export function WatchView({
           activeVideoId={activeVideoId}
           watched={watched}
           onToggleWatched={toggleWatched}
+          activeChapterIndex={activeChapterIndex}
+          onChapterSelect={handleChapterSelect}
+          completedChapters={completedChapters}
+          onToggleChapter={toggleChapter}
           compact
         />
       </div>
