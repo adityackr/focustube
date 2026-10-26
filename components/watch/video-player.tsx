@@ -561,12 +561,6 @@ export function VideoPlayer({
           </div>
         </div>
       </div>
-
-      <p className="mt-2 text-xs text-muted-foreground">
-        Shortcuts: <Kbd>Space</Kbd>/<Kbd>K</Kbd> play · <Kbd>J</Kbd>/<Kbd>L</Kbd> ±10s ·{" "}
-        <Kbd>←</Kbd>/<Kbd>→</Kbd> ±5s · <Kbd>↑</Kbd>/<Kbd>↓</Kbd> volume · <Kbd>M</Kbd> mute ·{" "}
-        <Kbd>C</Kbd> subtitles · <Kbd>F</Kbd> fullscreen
-      </p>
     </div>
   );
 }
@@ -637,11 +631,5 @@ function MenuItem({
       <span className="font-mono tabular-nums">{children}</span>
       {selected && <span aria-hidden>✓</span>}
     </button>
-  );
-}
-
-function Kbd({ children }: { children: React.ReactNode }) {
-  return (
-    <kbd className="rounded border bg-muted px-1 font-mono text-[10px] font-medium">{children}</kbd>
   );
 }

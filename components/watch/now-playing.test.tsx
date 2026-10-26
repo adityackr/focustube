@@ -38,9 +38,8 @@ describe("NowPlaying with the custom player", () => {
     render(
       <NowPlaying playlist={PLAYLIST} activeVideo={ACTIVE} activeIndex={0} watched={[]} />
     );
-    // Custom chrome: play overlay + shortcut legend (no native YouTube controls).
+    // Custom chrome: play overlay + control bar (no native YouTube controls).
     expect(screen.getByLabelText("Play")).toBeTruthy();
-    expect(screen.getByText(/Shortcuts:/)).toBeTruthy();
     expect(screen.getByLabelText("Fullscreen (f)")).toBeTruthy();
   });
 
